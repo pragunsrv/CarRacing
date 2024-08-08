@@ -16,6 +16,7 @@ blue = (0, 0, 255)
 green = (0, 255, 0)
 yellow = (255, 255, 0)
 purple = (128, 0, 128)
+gray = (169, 169, 169)
 
 # Create the screen
 screen = pygame.display.set_mode((screen_width, screen_height))
@@ -45,7 +46,7 @@ for i in range(3):
     obstacle_x = random.randrange(0, screen_width - obstacle_width)
     obstacle_y = -600 * (i + 1)
     obstacle_type = random.choice(obstacle_types)
-    obstacles.append([obstacle_x, obstacle_y, obstacle_type])
+    obstacles.append([obstacle_x, obstacle_y, obstacle_type, random.choice(["static", "moving"])])
 
 # Score, level, and lives
 score = 0
@@ -61,8 +62,12 @@ paused = False
 power_up_active = False
 power_up_duration = 5000  # in milliseconds
 power_up_start_time = 0
-power_up_types = ["invincibility", "extra_life"]
+power_up_types = ["invincibility", "extra_life", "slow_motion"]
 power_ups = []
+power_up_probability = 0.01
+
+# Game menu
+menu = True
 
 # Function to check for collisions
 def check_collision(car_x, car_y, obstacle_x, obstacle_y, obstacle_width, obstacle_height):
@@ -118,20 +123,56 @@ def increase_level():
 
 # Function to handle power-ups
 def activate_power_up(power_up):
-    global power_up_active, power_up_start_time, lives
-    power_up_active = True
+    global power_up_active, power_up_start_time, lives, obstacle_speed
+    power_up_active = power_up
     power_up_start_time = pygame.time.get_ticks()
-    if power_up == "invincibility":
-        power_up_active = "invincibility"
-    elif power_up == "extra_life":
+    if power_up == "extra_life":
         lives += 1
         power_up_active = False  # Extra life power-up is instantaneous
+    elif power_up == "slow_motion":
+        obstacle_speed /= 2
 
 def deactivate_power_up():
-    global power_up_active
+    global power_up_active, obstacle_speed
+    if power_up_active == "slow_motion":
+        obstacle_speed *= 2
     power_up_active = False
 
-# Game Loop
+# Function to generate power-ups randomly
+def generate_power_up():
+    if random.random() < power_up_probability:
+        power_up_x = random.randrange(0, screen_width - 30)
+        power_up_y = -30
+        power_up_type = random.choice(power_up_types)
+        power_ups.append([power_up_x, power_up_y, power_up_type])
+
+# Function to draw power-ups
+def draw_power_up(power_up):
+    if power_up[2] == "invincibility":
+        pygame.draw.circle(screen, purple, (power_up[0], power_up[1]), 15)
+    elif power_up[2] == "extra_life":
+        pygame.draw.circle(screen, yellow, (power_up[0], power_up[1]), 15)
+    elif power_up[2] == "slow_motion":
+        pygame.draw.circle(screen, gray, (power_up[0], power_up[1]), 15)
+
+# Game Menu
+def show_menu():
+    menu = True
+    while menu:
+        screen.fill(white)
+        display_message("Car Racing Game", screen_width // 5, screen_height // 4)
+        display_message("Press Enter to Start", screen_width // 5, screen_height // 2)
+        pygame.display.update()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_RETURN:
+                    menu = False
+
+# Start Game
+show_menu()
+
 running = True
 while running:
     for event in pygame.event.get():
@@ -153,8 +194,13 @@ while running:
 
     car_x += car_speed
 
-    # Update obstacle positions
+    # Update obstacle positions and movement patterns
     for obstacle in obstacles:
+        if obstacle[3] == "moving":
+            obstacle[0] += random.choice([-3, 3])  # Horizontal movement
+            if obstacle[0] < 0 or obstacle[0] > screen_width - obstacle_width:
+                obstacle[0] = max(0, min(obstacle[0], screen_width - obstacle_width))
+        
         obstacle[1] += obstacle_speed
 
         # Reset obstacle when it goes off screen
@@ -162,6 +208,7 @@ while running:
             obstacle[1] = 0 - obstacle[2][1]
             obstacle[0] = random.randrange(0, screen_width - obstacle[2][1])
             obstacle[2] = random.choice(obstacle_types)
+            obstacle[3] = random.choice(["static", "moving"])
             score += 1
 
             # Increase level
@@ -177,6 +224,16 @@ while running:
             else:
                 obstacle[1] = screen_height  # Move the obstacle off the screen
 
+    # Generate and update power-ups
+    generate_power_up()
+    for power_up in power_ups:
+        power_up[1] += 5
+        if power_up[1] > screen_height:
+            power_ups.remove(power_up)
+        elif check_collision(car_x, car_y, power_up[0], power_up[1], 30, 30):
+            activate_power_up(power_up[2])
+            power_ups.remove(power_up)
+
     # Handle power-up activation
     if power_up_active and pygame.time.get_ticks() - power_up_start_time > power_up_duration:
         deactivate_power_up()
@@ -190,6 +247,10 @@ while running:
     # Draw obstacles
     for obstacle in obstacles:
         pygame.draw.rect(screen, obstacle[2][0], [obstacle[0], obstacle[1], obstacle[2][1], obstacle[2][2]])
+
+    # Draw power-ups
+    for power_up in power_ups:
+        draw_power_up(power_up)
 
     # Display score, level, and lives
     display_score_level_lives(score, level, lives)
