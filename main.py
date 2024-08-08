@@ -15,6 +15,7 @@ red = (255, 0, 0)
 blue = (0, 0, 255)
 green = (0, 255, 0)
 yellow = (255, 255, 0)
+purple = (128, 0, 128)
 
 # Create the screen
 screen = pygame.display.set_mode((screen_width, screen_height))
@@ -40,20 +41,28 @@ obstacle_types = [(blue, 50, 60), (yellow, 60, 70)]  # Different obstacle colors
 
 # Multiple obstacles
 obstacles = []
-for i in range(3):  # Increase the number of obstacles to 3
+for i in range(3):
     obstacle_x = random.randrange(0, screen_width - obstacle_width)
     obstacle_y = -600 * (i + 1)
     obstacle_type = random.choice(obstacle_types)
     obstacles.append([obstacle_x, obstacle_y, obstacle_type])
 
-# Score and level
+# Score, level, and lives
 score = 0
 level = 1
 level_threshold = 5
+lives = 3
 font = pygame.font.SysFont(None, 35)
 
 # Pause functionality
 paused = False
+
+# Power-up settings
+power_up_active = False
+power_up_duration = 5000  # in milliseconds
+power_up_start_time = 0
+power_up_types = ["invincibility", "extra_life"]
+power_ups = []
 
 # Function to check for collisions
 def check_collision(car_x, car_y, obstacle_x, obstacle_y, obstacle_width, obstacle_height):
@@ -64,12 +73,14 @@ def check_collision(car_x, car_y, obstacle_x, obstacle_y, obstacle_width, obstac
         return True
     return False
 
-# Function to display the score and level
-def display_score_and_level(score, level):
+# Function to display score, level, and lives
+def display_score_level_lives(score, level, lives):
     score_text = font.render(f"Score: {score}", True, black)
     level_text = font.render(f"Level: {level}", True, black)
+    lives_text = font.render(f"Lives: {lives}", True, black)
     screen.blit(score_text, [10, 10])
-    screen.blit(level_text, [screen_width - 120, 10])
+    screen.blit(level_text, [screen_width // 2 - 50, 10])
+    screen.blit(lives_text, [screen_width - 120, 10])
 
 # Function to display game over
 def display_game_over(score):
@@ -104,6 +115,21 @@ def increase_level():
     global level, obstacle_speed
     level += 1
     obstacle_speed += 2
+
+# Function to handle power-ups
+def activate_power_up(power_up):
+    global power_up_active, power_up_start_time, lives
+    power_up_active = True
+    power_up_start_time = pygame.time.get_ticks()
+    if power_up == "invincibility":
+        power_up_active = "invincibility"
+    elif power_up == "extra_life":
+        lives += 1
+        power_up_active = False  # Extra life power-up is instantaneous
+
+def deactivate_power_up():
+    global power_up_active
+    power_up_active = False
 
 # Game Loop
 running = True
@@ -143,9 +169,17 @@ while running:
                 increase_level()
 
         # Check for collision
-        if check_collision(car_x, car_y, obstacle[0], obstacle[1], obstacle[2][1], obstacle[2][2]):
-            display_game_over(score)
-            running = False
+        if not power_up_active == "invincibility" and check_collision(car_x, car_y, obstacle[0], obstacle[1], obstacle[2][1], obstacle[2][2]):
+            lives -= 1
+            if lives == 0:
+                display_game_over(score)
+                running = False
+            else:
+                obstacle[1] = screen_height  # Move the obstacle off the screen
+
+    # Handle power-up activation
+    if power_up_active and pygame.time.get_ticks() - power_up_start_time > power_up_duration:
+        deactivate_power_up()
 
     # Screen background
     screen.blit(background, (0, 0))
@@ -157,8 +191,8 @@ while running:
     for obstacle in obstacles:
         pygame.draw.rect(screen, obstacle[2][0], [obstacle[0], obstacle[1], obstacle[2][1], obstacle[2][2]])
 
-    # Display score and level
-    display_score_and_level(score, level)
+    # Display score, level, and lives
+    display_score_level_lives(score, level, lives)
 
     # Update display
     pygame.display.update()
