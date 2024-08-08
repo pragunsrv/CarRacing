@@ -28,12 +28,19 @@ car_width = 50
 car_height = 60
 car_speed = 0
 car_types = [
-    {"color": red, "speed": 5, "handling": 1.0},  # Car type 1
-    {"color": blue, "speed": 6, "handling": 1.2},  # Car type 2
-    {"color": green, "speed": 7, "handling": 1.5}  # Car type 3
+    {"color": red, "speed": 5, "handling": 1.0, "acceleration": 0.1},  # Car type 1
+    {"color": blue, "speed": 6, "handling": 1.2, "acceleration": 0.15},  # Car type 2
+    {"color": green, "speed": 7, "handling": 1.5, "acceleration": 0.2}  # Car type 3
 ]
 selected_car = car_types[0]  # Default car type
 car_upgrades = {"speed": 0, "handling": 0}
+
+# Car Customization
+car_customizations = {
+    "color": [red, blue, green, yellow],
+    "accessories": ["none", "spoiler", "neon_lights"]
+}
+car_customization = {"color": red, "accessory": "none"}
 
 # Track settings
 tracks = [
@@ -60,7 +67,7 @@ for i in range(3):
     obstacle_x = random.randrange(0, screen_width - obstacle_width)
     obstacle_y = -600 * (i + 1)
     obstacle_type = random.choice(obstacle_types)
-    obstacles.append([obstacle_x, obstacle_y, obstacle_type, random.choice(["static", "moving"])])
+    obstacles.append([obstacle_x, obstacle_y, obstacle_type, random.choice(["static", "moving", "dynamic"])])
     
 # Score, level, and lives
 score = 0
@@ -89,6 +96,12 @@ current_weather = random.choice(weather_conditions)
 
 # Player achievements
 achievements = {"first_crash": False, "high_score": 0}
+
+# Multiplayer settings
+multiplayer_mode = False
+player2_x, player2_y = screen_width // 2 + 100, screen_height - car_height
+player2_speed = 0
+player2_car = {"color": yellow, "speed": 5, "handling": 1.0, "acceleration": 0.1}
 
 # Function to check for collisions
 def check_collision(car_x, car_y, obstacle_x, obstacle_y, obstacle_width, obstacle_height):
@@ -204,10 +217,13 @@ def update_obstacle_ai(obstacle):
         obstacle[0] += random.choice([-3, 3])  # Horizontal movement
         if obstacle[0] < 0 or obstacle[0] > screen_width - obstacle_width:
             obstacle[0] = max(0, min(obstacle[0], screen_width - obstacle_width))
-    elif obstacle[3] == "zigzag":
+    elif obstacle[3] == "dynamic":
         obstacle[0] += random.choice([-2, 2])
+        obstacle[1] += random.choice([-2, 2])
         if obstacle[0] < 0 or obstacle[0] > screen_width - obstacle_width:
             obstacle[0] = max(0, min(obstacle[0], screen_width - obstacle_width))
+        if obstacle[1] < 0 or obstacle[1] > screen_height:
+            obstacle[1] = max(0, min(obstacle[1], screen_height))
 
 # Function to check and update achievements
 def update_achievements():
@@ -226,6 +242,7 @@ def update_achievements():
 
 # Game Menu
 def show_menu():
+    global multiplayer_mode
     menu = True
     while menu:
         screen.fill(white)
@@ -234,6 +251,7 @@ def show_menu():
         display_message("Press C to Change Car", screen_width // 5, screen_height // 2 + 50)
         display_message("Press W to Change Weather", screen_width // 5, screen_height // 2 + 100)
         display_message("Press U to Upgrade Car", screen_width // 5, screen_height // 2 + 150)
+        display_message("Press M for Multiplayer", screen_width // 5, screen_height // 2 + 200)
         pygame.display.update()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -247,6 +265,11 @@ def show_menu():
                     change_weather()
                 if event.key == pygame.K_u:
                     show_upgrade_menu()
+                if event.key == pygame.K_m:
+                    multiplayer_mode = not multiplayer_mode
+                    display_message("Multiplayer Mode: " + ("On" if multiplayer_mode else "Off"), screen_width // 3, screen_height // 2 + 250)
+                    pygame.display.update()
+                    pygame.time.wait(1000)
 
 def show_upgrade_menu():
     global car_upgrades
@@ -284,13 +307,18 @@ def change_weather():
 # Start Game
 show_menu()
 
+car_x, car_y = screen_width // 2 - car_width // 2, screen_height - car_height
+player2_x, player2_y = screen_width // 2 + 100, screen_height - car_height
+car_speed = 0
+player2_speed = 0
+
 running = True
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
 
-        # Car movement
+        # Car movement for player 1
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_LEFT:
                 car_speed = -selected_car["speed"]
@@ -298,12 +326,36 @@ while running:
                 car_speed = selected_car["speed"]
             if event.key == pygame.K_p:
                 pause_game()
-
+        
         if event.type == pygame.KEYUP:
             if event.key == pygame.K_LEFT or event.key == pygame.K_RIGHT:
                 car_speed = 0
 
+        # Car movement for player 2 (multiplayer mode)
+        if multiplayer_mode:
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_a]:
+                player2_speed = -player2_car["speed"]
+            if keys[pygame.K_d]:
+                player2_speed = player2_car["speed"]
+            if keys[pygame.K_w]:
+                player2_speed = 0
+            if keys[pygame.K_s]:
+                player2_speed = 0
+
+    # Update player positions
     car_x += car_speed
+    player2_x += player2_speed
+
+    # Boundary checking
+    if car_x < 0:
+        car_x = 0
+    if car_x > screen_width - car_width:
+        car_x = screen_width - car_width
+    if player2_x < 0:
+        player2_x = 0
+    if player2_x > screen_width - car_width:
+        player2_x = screen_width - car_width
 
     # Update obstacle positions and movement patterns
     for obstacle in obstacles:
@@ -315,15 +367,25 @@ while running:
             obstacle[1] = 0 - obstacle[2][1]
             obstacle[0] = random.randrange(0, screen_width - obstacle[2][1])
             obstacle[2] = random.choice(obstacle_types)
-            obstacle[3] = random.choice(["static", "moving", "zigzag"])
+            obstacle[3] = random.choice(["static", "moving", "dynamic"])
             score += 1
 
             # Increase level
             if score % level_threshold == 0:
                 increase_level()
 
-        # Check for collision
+        # Check for collision with player 1
         if not power_up_active == "invincibility" and check_collision(car_x, car_y, obstacle[0], obstacle[1], obstacle[2][1], obstacle[2][2]):
+            lives -= 1
+            update_achievements()
+            if lives == 0:
+                display_game_over(score)
+                running = False
+            else:
+                obstacle[1] = screen_height  # Move the obstacle off the screen
+
+        # Check for collision with player 2
+        if multiplayer_mode and not power_up_active == "invincibility" and check_collision(player2_x, player2_y, obstacle[0], obstacle[1], obstacle[2][1], obstacle[2][2]):
             lives -= 1
             update_achievements()
             if lives == 0:
@@ -341,6 +403,9 @@ while running:
         elif check_collision(car_x, car_y, power_up[0], power_up[1], 30, 30):
             activate_power_up(power_up[2])
             power_ups.remove(power_up)
+        elif multiplayer_mode and check_collision(player2_x, player2_y, power_up[0], power_up[1], 30, 30):
+            activate_power_up(power_up[2])
+            power_ups.remove(power_up)
 
     # Handle power-up activation
     if power_up_active and pygame.time.get_ticks() - power_up_start_time > power_up_duration:
@@ -350,8 +415,9 @@ while running:
     background.fill(tracks[current_track]["bg_color"])
     screen.blit(background, (0, 0))
 
-    # Draw car
+    # Draw cars
     pygame.draw.rect(screen, selected_car["color"], [car_x, car_y, car_width, car_height])
+    pygame.draw.rect(screen, player2_car["color"], [player2_x, player2_y, car_width, car_height]) if multiplayer_mode else None
 
     # Draw obstacles
     for obstacle in obstacles:
