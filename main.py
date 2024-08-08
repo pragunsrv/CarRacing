@@ -31,6 +31,11 @@ obstacle_height = 60
 obstacle_x = random.randrange(0, screen_width - obstacle_width)
 obstacle_y = -600
 obstacle_speed = 7
+obstacle_speed_increment = 0.01
+
+# Score
+score = 0
+font = pygame.font.SysFont(None, 35)
 
 # Function to check for collisions
 def check_collision(car_x, car_y, obstacle_x, obstacle_y, obstacle_width, obstacle_height):
@@ -40,6 +45,11 @@ def check_collision(car_x, car_y, obstacle_x, obstacle_y, obstacle_width, obstac
         car_x + car_width > obstacle_x):
         return True
     return False
+
+# Function to display the score
+def display_score(score):
+    text = font.render(f"Score: {score}", True, black)
+    screen.blit(text, [10, 10])
 
 # Game Loop
 running = True
@@ -68,6 +78,8 @@ while running:
     if obstacle_y > screen_height:
         obstacle_y = 0 - obstacle_height
         obstacle_x = random.randrange(0, screen_width - obstacle_width)
+        score += 1
+        obstacle_speed += obstacle_speed_increment
 
     # Check for collision
     if check_collision(car_x, car_y, obstacle_x, obstacle_y, obstacle_width, obstacle_height):
@@ -81,6 +93,9 @@ while running:
 
     # Draw obstacle
     pygame.draw.rect(screen, blue, [obstacle_x, obstacle_y, obstacle_width, obstacle_height])
+
+    # Display score
+    display_score(score)
 
     # Update display
     pygame.display.update()
