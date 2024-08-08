@@ -1,5 +1,6 @@
 import pygame
 import random
+import math
 
 # Initialize Pygame
 pygame.init()
@@ -68,7 +69,7 @@ for i in range(3):
     obstacle_y = -600 * (i + 1)
     obstacle_type = random.choice(obstacle_types)
     obstacles.append([obstacle_x, obstacle_y, obstacle_type, random.choice(["static", "moving", "dynamic"])])
-    
+
 # Score, level, and lives
 score = 0
 level = 1
@@ -91,7 +92,7 @@ power_up_probability = 0.01
 menu = True
 
 # Weather conditions
-weather_conditions = ["sunny", "rainy"]
+weather_conditions = ["sunny", "rainy", "foggy", "snowy"]
 current_weather = random.choice(weather_conditions)
 
 # Player achievements
@@ -102,6 +103,24 @@ multiplayer_mode = False
 player2_x, player2_y = screen_width // 2 + 100, screen_height - car_height
 player2_speed = 0
 player2_car = {"color": yellow, "speed": 5, "handling": 1.0, "acceleration": 0.1}
+
+# AI Opponents
+ai_opponents = []
+num_ai_opponents = 2
+ai_difficulty = 1
+for i in range(num_ai_opponents):
+    ai_car = {
+        "x": random.randrange(0, screen_width - car_width),
+        "y": random.randrange(-300, -100),
+        "speed": random.randint(3, 5),
+        "color": purple,
+        "handling": 1.0,
+    }
+    ai_opponents.append(ai_car)
+
+# Dynamic camera
+camera_offset = 0
+camera_speed = 0.05
 
 # Function to check for collisions
 def check_collision(car_x, car_y, obstacle_x, obstacle_y, obstacle_width, obstacle_height):
@@ -151,9 +170,10 @@ def display_message(text, x, y):
 
 # Function to increase the level
 def increase_level():
-    global level, obstacle_speed, current_track
+    global level, obstacle_speed, current_track, ai_difficulty
     level += 1
     obstacle_speed += obstacle_speed_increment
+    ai_difficulty += 0.2  # AI becomes harder
     if level % 10 == 0:  # Change track every 10 levels
         current_track = (current_track + 1) % len(tracks)
         obstacle_speed = tracks[current_track]["obstacle_speed"]
@@ -205,18 +225,15 @@ def upgrade_car(upgrade_type):
     if upgrade_type == "speed":
         car_upgrades["speed"] += 1
     elif upgrade_type == "handling":
-        car_upgrades["handling"] += 0.1
+        car_upgrades["handling"] += 1
+    display_message(f"{upgrade_type.capitalize()} Upgraded!", screen_width // 3, screen_height // 3 + 100)
+    pygame.display.update()
+    pygame.time.wait(2000)
 
-    # Apply upgrades
-    selected_car["speed"] += car_upgrades["speed"]
-    selected_car["handling"] += car_upgrades["handling"]
-
-# Function to enhance obstacle AI
+# Function to update obstacle behavior
 def update_obstacle_ai(obstacle):
     if obstacle[3] == "moving":
-        obstacle[0] += random.choice([-3, 3])  # Horizontal movement
-        if obstacle[0] < 0 or obstacle[0] > screen_width - obstacle_width:
-            obstacle[0] = max(0, min(obstacle[0], screen_width - obstacle_width))
+        obstacle[0] += random.choice([-1, 1]) * random.randint(1, 3)
     elif obstacle[3] == "dynamic":
         obstacle[0] += random.choice([-2, 2])
         obstacle[1] += random.choice([-2, 2])
@@ -224,6 +241,32 @@ def update_obstacle_ai(obstacle):
             obstacle[0] = max(0, min(obstacle[0], screen_width - obstacle_width))
         if obstacle[1] < 0 or obstacle[1] > screen_height:
             obstacle[1] = max(0, min(obstacle[1], screen_height))
+
+# Function to update AI opponent behavior
+def update_ai_opponents():
+    for ai_car in ai_opponents:
+        ai_car["y"] += ai_car["speed"] + ai_difficulty
+        if ai_car["y"] > screen_height:
+            ai_car["y"] = random.randrange(-300, -100)
+            ai_car["x"] = random.randrange(0, screen_width - car_width)
+
+        # Move AI cars towards player
+        if ai_car["x"] < car_x:
+            ai_car["x"] += 1
+        elif ai_car["x"] > car_x:
+            ai_car["x"] -= 1
+
+# Function to handle weather effects
+def apply_weather_effects():
+    global car_speed, obstacle_speed
+    if current_weather == "rainy":
+        car_speed *= 0.9
+        obstacle_speed *= 0.9
+    elif current_weather == "foggy":
+        obstacle_speed *= 0.8
+    elif current_weather == "snowy":
+        car_speed *= 0.8
+        obstacle_speed *= 0.7
 
 # Function to check and update achievements
 def update_achievements():
@@ -347,6 +390,9 @@ while running:
     car_x += car_speed
     player2_x += player2_speed
 
+    # Apply camera effect (smooth follow)
+    camera_offset += (car_y - camera_offset) * camera_speed
+
     # Boundary checking
     if car_x < 0:
         car_x = 0
@@ -394,43 +440,47 @@ while running:
             else:
                 obstacle[1] = screen_height  # Move the obstacle off the screen
 
-    # Generate and update power-ups
+    # Update AI opponents
+    update_ai_opponents()
+    for ai_car in ai_opponents:
+        pygame.draw.rect(screen, ai_car["color"], [ai_car["x"], ai_car["y"], car_width, car_height])
+        if check_collision(car_x, car_y, ai_car["x"], ai_car["y"], car_width, car_height):
+            lives -= 1
+            update_achievements()
+            if lives == 0:
+                display_game_over(score)
+                running = False
+
+    # Apply weather effects
+    apply_weather_effects()
+
+    # Power-up logic
     generate_power_up()
     for power_up in power_ups:
-        power_up[1] += 5
-        if power_up[1] > screen_height:
-            power_ups.remove(power_up)
-        elif check_collision(car_x, car_y, power_up[0], power_up[1], 30, 30):
+        power_up[1] += 5  # Power-up falling speed
+        draw_power_up(power_up)
+        if check_collision(car_x, car_y, power_up[0], power_up[1], 30, 30):
             activate_power_up(power_up[2])
             power_ups.remove(power_up)
-        elif multiplayer_mode and check_collision(player2_x, player2_y, power_up[0], power_up[1], 30, 30):
-            activate_power_up(power_up[2])
+        elif power_up[1] > screen_height:
             power_ups.remove(power_up)
 
-    # Handle power-up activation
-    if power_up_active and pygame.time.get_ticks() - power_up_start_time > power_up_duration:
-        deactivate_power_up()
+    if power_up_active:
+        if pygame.time.get_ticks() - power_up_start_time > power_up_duration:
+            deactivate_power_up()
 
-    # Screen background
-    background.fill(tracks[current_track]["bg_color"])
-    screen.blit(background, (0, 0))
-
-    # Draw cars
+    # Drawing everything
+    screen.blit(background, (0, -camera_offset))
     pygame.draw.rect(screen, selected_car["color"], [car_x, car_y, car_width, car_height])
-    pygame.draw.rect(screen, player2_car["color"], [player2_x, player2_y, car_width, car_height]) if multiplayer_mode else None
+    if multiplayer_mode:
+        pygame.draw.rect(screen, player2_car["color"], [player2_x, player2_y, car_width, car_height])
 
-    # Draw obstacles
     for obstacle in obstacles:
         pygame.draw.rect(screen, obstacle[2][0], [obstacle[0], obstacle[1], obstacle[2][1], obstacle[2][2]])
 
-    # Draw power-ups
-    for power_up in power_ups:
-        draw_power_up(power_up)
-
-    # Display score, level, and lives
     display_score_level_lives(score, level, lives)
 
-    # Update display
-    pygame.display.update()
+    pygame.display.flip()
+    pygame.time.Clock().tick(60)
 
 pygame.quit()
