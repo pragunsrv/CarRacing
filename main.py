@@ -13,6 +13,7 @@ black = (0, 0, 0)
 white = (255, 255, 255)
 red = (255, 0, 0)
 blue = (0, 0, 255)
+green = (0, 255, 0)
 
 # Create the screen
 screen = pygame.display.set_mode((screen_width, screen_height))
@@ -28,14 +29,22 @@ car_speed = 0
 # Obstacle settings
 obstacle_width = 50
 obstacle_height = 60
-obstacle_x = random.randrange(0, screen_width - obstacle_width)
-obstacle_y = -600
 obstacle_speed = 7
 obstacle_speed_increment = 0.01
+
+# Multiple obstacles
+obstacles = []
+for i in range(2):
+    obstacle_x = random.randrange(0, screen_width - obstacle_width)
+    obstacle_y = -600 * (i + 1)
+    obstacles.append([obstacle_x, obstacle_y])
 
 # Score
 score = 0
 font = pygame.font.SysFont(None, 35)
+
+# Pause functionality
+paused = False
 
 # Function to check for collisions
 def check_collision(car_x, car_y, obstacle_x, obstacle_y, obstacle_width, obstacle_height):
@@ -51,6 +60,34 @@ def display_score(score):
     text = font.render(f"Score: {score}", True, black)
     screen.blit(text, [10, 10])
 
+# Function to display game over
+def display_game_over(score):
+    large_font = pygame.font.SysFont(None, 75)
+    text = large_font.render(f"Game Over! Score: {score}", True, red)
+    screen.blit(text, [screen_width // 8, screen_height // 3])
+    pygame.display.update()
+    pygame.time.wait(2000)
+
+# Function to pause the game
+def pause_game():
+    global paused
+    paused = True
+    display_message("Paused", screen_width // 3, screen_height // 3)
+    while paused:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_p:
+                    paused = False
+        pygame.display.update()
+
+# Function to display messages
+def display_message(text, x, y):
+    large_font = pygame.font.SysFont(None, 75)
+    message = large_font.render(text, True, green)
+    screen.blit(message, [x, y])
+
 # Game Loop
 running = True
 while running:
@@ -64,6 +101,8 @@ while running:
                 car_speed = -5
             if event.key == pygame.K_RIGHT:
                 car_speed = 5
+            if event.key == pygame.K_p:
+                pause_game()
 
         if event.type == pygame.KEYUP:
             if event.key == pygame.K_LEFT or event.key == pygame.K_RIGHT:
@@ -71,19 +110,21 @@ while running:
 
     car_x += car_speed
 
-    # Update obstacle position
-    obstacle_y += obstacle_speed
+    # Update obstacle positions
+    for obstacle in obstacles:
+        obstacle[1] += obstacle_speed
 
-    # Reset obstacle when it goes off screen
-    if obstacle_y > screen_height:
-        obstacle_y = 0 - obstacle_height
-        obstacle_x = random.randrange(0, screen_width - obstacle_width)
-        score += 1
-        obstacle_speed += obstacle_speed_increment
+        # Reset obstacle when it goes off screen
+        if obstacle[1] > screen_height:
+            obstacle[1] = 0 - obstacle_height
+            obstacle[0] = random.randrange(0, screen_width - obstacle_width)
+            score += 1
+            obstacle_speed += obstacle_speed_increment
 
-    # Check for collision
-    if check_collision(car_x, car_y, obstacle_x, obstacle_y, obstacle_width, obstacle_height):
-        running = False
+        # Check for collision
+        if check_collision(car_x, car_y, obstacle[0], obstacle[1], obstacle_width, obstacle_height):
+            display_game_over(score)
+            running = False
 
     # Screen background
     screen.fill(white)
@@ -91,8 +132,9 @@ while running:
     # Draw car
     pygame.draw.rect(screen, red, [car_x, car_y, car_width, car_height])
 
-    # Draw obstacle
-    pygame.draw.rect(screen, blue, [obstacle_x, obstacle_y, obstacle_width, obstacle_height])
+    # Draw obstacles
+    for obstacle in obstacles:
+        pygame.draw.rect(screen, blue, [obstacle[0], obstacle[1], obstacle_width, obstacle_height])
 
     # Display score
     display_score(score)
