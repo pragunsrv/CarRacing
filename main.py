@@ -6,8 +6,8 @@ import math
 pygame.init()
 
 # Screen dimensions
-screen_width = 800
-screen_height = 600
+screen_width = 1024
+screen_height = 768
 
 # Colors
 black = (0, 0, 0)
@@ -25,13 +25,13 @@ screen = pygame.display.set_mode((screen_width, screen_height))
 pygame.display.set_caption("Car Racing Game")
 
 # Car settings
-car_width = 50
-car_height = 60
+car_width = 60
+car_height = 70
 car_speed = 0
 car_types = [
-    {"color": red, "speed": 5, "handling": 1.0, "acceleration": 0.1},  # Car type 1
-    {"color": blue, "speed": 6, "handling": 1.2, "acceleration": 0.15},  # Car type 2
-    {"color": green, "speed": 7, "handling": 1.5, "acceleration": 0.2}  # Car type 3
+    {"color": red, "speed": 6, "handling": 1.0, "acceleration": 0.15},  # Car type 1
+    {"color": blue, "speed": 7, "handling": 1.2, "acceleration": 0.2},  # Car type 2
+    {"color": green, "speed": 8, "handling": 1.5, "acceleration": 0.25}  # Car type 3
 ]
 selected_car = car_types[0]  # Default car type
 car_upgrades = {"speed": 0, "handling": 0}
@@ -45,9 +45,11 @@ car_customization = {"color": red, "accessory": "none"}
 
 # Track settings
 tracks = [
-    {"bg_color": green, "obstacle_speed": 7, "track_name": "Forest Run"},  # Track 1
-    {"bg_color": light_gray, "obstacle_speed": 9, "track_name": "City Streets"},  # Track 2
-    {"bg_color": gray, "obstacle_speed": 11, "track_name": "Desert Dash"}  # Track 3
+    {"bg_color": green, "obstacle_speed": 8, "track_name": "Forest Run"},  # Track 1
+    {"bg_color": light_gray, "obstacle_speed": 10, "track_name": "City Streets"},  # Track 2
+    {"bg_color": gray, "obstacle_speed": 12, "track_name": "Desert Dash"},  # Track 3
+    {"bg_color": black, "obstacle_speed": 15, "track_name": "Night Race"},  # Track 4
+    {"bg_color": blue, "obstacle_speed": 18, "track_name": "Ocean Drive"}  # Track 5
 ]
 current_track = 0
 
@@ -56,28 +58,28 @@ background = pygame.Surface(screen.get_size())
 background.fill(tracks[current_track]["bg_color"])
 
 # Obstacle settings
-obstacle_width = 50
-obstacle_height = 60
+obstacle_width = 60
+obstacle_height = 70
 obstacle_speed = tracks[current_track]["obstacle_speed"]
-obstacle_speed_increment = 0.05
-obstacle_types = [(blue, 50, 60), (yellow, 60, 70)]  # Different obstacle colors and sizes
+obstacle_speed_increment = 0.1
+obstacle_types = [(blue, 60, 70), (yellow, 70, 80), (purple, 80, 90)]  # Different obstacle colors and sizes
 
 # Multiple obstacles
 obstacles = []
-for i in range(3):
+for i in range(4):
     obstacle_x = random.randrange(0, screen_width - obstacle_width)
-    obstacle_y = -600 * (i + 1)
+    obstacle_y = -screen_height // 2 * (i + 1)
     obstacle_type = random.choice(obstacle_types)
     obstacles.append([obstacle_x, obstacle_y, obstacle_type, random.choice(["static", "moving", "dynamic"])])
 
 # Score, level, lives, and laps
 score = 0
 level = 1
-level_threshold = 5
+level_threshold = 10
 lives = 3
 laps = 0
-lap_threshold = 3
-font = pygame.font.SysFont(None, 35)
+lap_threshold = 5
+font = pygame.font.SysFont(None, 40)
 
 # Pause functionality
 paused = False
@@ -88,13 +90,13 @@ power_up_duration = 5000  # in milliseconds
 power_up_start_time = 0
 power_up_types = ["invincibility", "extra_life", "slow_motion", "speed_boost"]
 power_ups = []
-power_up_probability = 0.01
+power_up_probability = 0.02
 
 # Game menu
 menu = True
 
 # Weather conditions
-weather_conditions = ["sunny", "rainy", "foggy", "snowy"]
+weather_conditions = ["sunny", "rainy", "foggy", "snowy", "stormy"]
 current_weather = random.choice(weather_conditions)
 
 # Player achievements
@@ -102,19 +104,19 @@ achievements = {"first_crash": False, "high_score": 0, "first_lap": False, "max_
 
 # Multiplayer settings
 multiplayer_mode = False
-player2_x, player2_y = screen_width // 2 + 100, screen_height - car_height
+player2_x, player2_y = screen_width // 2 + 150, screen_height - car_height
 player2_speed = 0
-player2_car = {"color": yellow, "speed": 5, "handling": 1.0, "acceleration": 0.1}
+player2_car = {"color": yellow, "speed": 6, "handling": 1.0, "acceleration": 0.15}
 
 # AI Opponents
 ai_opponents = []
-num_ai_opponents = 4  # Number of AI opponents
-ai_difficulty = 1.5
+num_ai_opponents = 6  # Number of AI opponents
+ai_difficulty = 2.0
 for i in range(num_ai_opponents):
     ai_car = {
         "x": random.randrange(0, screen_width - car_width),
-        "y": random.randrange(-300, -100),
-        "speed": random.randint(3, 5),
+        "y": random.randrange(-400, -100),
+        "speed": random.randint(4, 6),
         "color": purple,
         "handling": 1.0,
     }
@@ -122,13 +124,16 @@ for i in range(num_ai_opponents):
 
 # Dynamic camera
 camera_offset = 0
-camera_speed = 0.05
+camera_speed = 0.1
 
 # Race Modes
-race_modes = ["standard", "time_trial"]
+race_modes = ["standard", "time_trial", "championship"]
 current_mode = "standard"
 time_trial_time = 60000  # 60 seconds time trial
 time_trial_start_time = 0
+championship_race_count = 5
+current_championship_race = 0
+championship_scores = []
 
 # Lap Counting
 lap_start_y = screen_height
@@ -140,7 +145,7 @@ lap_times = []
 split_screen = False
 
 # Pit Stop settings
-pit_stop_zone = pygame.Rect(0, screen_height - 50, screen_width, 50)
+pit_stop_zone = pygame.Rect(0, screen_height - 100, screen_width, 100)
 in_pit_stop = False
 pit_stop_timer = 0
 pit_stop_duration = 3000  # 3 seconds
@@ -162,7 +167,7 @@ def display_score_level_lives_laps(score, level, lives, laps):
     laps_text = font.render(f"Laps: {laps}/{lap_threshold}", True, black)
     screen.blit(score_text, [10, 10])
     screen.blit(level_text, [screen_width // 3, 10])
-    screen.blit(lives_text, [screen_width - 120, 10])
+    screen.blit(lives_text, [screen_width - 140, 10])
     screen.blit(laps_text, [screen_width // 2 + 50, 10])
 
 # Function to display game over
@@ -225,7 +230,7 @@ def deactivate_power_up():
         selected_car["speed"] -= 2
     power_up_active = None
 
-# Function to generate power-ups randomly
+# Function to generate power-ups
 def generate_power_up():
     if random.random() < power_up_probability:
         power_up_x = random.randrange(0, screen_width - 30)
@@ -307,6 +312,9 @@ def apply_weather_effects():
     elif current_weather == "snowy":
         car_speed *= 0.8
         obstacle_speed *= 0.7
+    elif current_weather == "stormy":
+        car_speed *= 0.7
+        obstacle_speed *= 0.6
 
 # Function to check and update achievements
 def update_achievements():
@@ -343,6 +351,7 @@ def show_menu():
         display_message("Press M for Multiplayer", screen_width // 5, screen_height // 2 + 200)
         display_message("Press R to Change Track", screen_width // 5, screen_height // 2 + 250)
         display_message("Press S for Split-Screen", screen_width // 5, screen_height // 2 + 300)
+        display_message("Press H for Championship Mode", screen_width // 5, screen_height // 2 + 350)
         pygame.display.update()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -358,7 +367,7 @@ def show_menu():
                     current_mode = "time_trial"
                 if event.key == pygame.K_m:
                     multiplayer_mode = not multiplayer_mode
-                    display_message("Multiplayer Mode: " + ("On" if multiplayer_mode else "Off"), screen_width // 3, screen_height // 2 + 350)
+                    display_message("Multiplayer Mode: " + ("On" if multiplayer_mode else "Off"), screen_width // 3, screen_height // 2 + 400)
                     pygame.display.update()
                     pygame.time.wait(1000)
                 if event.key == pygame.K_r:
@@ -366,9 +375,11 @@ def show_menu():
                     background.fill(tracks[current_track]["bg_color"])
                 if event.key == pygame.K_s:
                     split_screen = not split_screen
-                    display_message("Split-Screen Mode: " + ("On" if split_screen else "Off"), screen_width // 3, screen_height // 2 + 400)
+                    display_message("Split-Screen Mode: " + ("On" if split_screen else "Off"), screen_width // 3, screen_height // 2 + 450)
                     pygame.display.update()
                     pygame.time.wait(1000)
+                if event.key == pygame.K_h:
+                    current_mode = "championship"
 
 def show_upgrade_menu():
     global car_upgrades
@@ -413,35 +424,31 @@ player2_speed = 0
 
 if current_mode == "time_trial":
     time_trial_start_time = pygame.time.get_ticks()
+if current_mode == "championship":
+    championship_scores = []
 
 running = True
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
-
-        # Car movement for player 1
         if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_LEFT:
-                car_speed = -selected_car["speed"]
-            if event.key == pygame.K_RIGHT:
-                car_speed = selected_car["speed"]
             if event.key == pygame.K_p:
                 pause_game()
-        
-        if event.type == pygame.KEYUP:
-            if event.key == pygame.K_LEFT or event.key == pygame.K_RIGHT:
+            if event.key == pygame.K_UP:
+                car_speed = selected_car["speed"]
+            if event.key == pygame.K_DOWN:
                 car_speed = 0
-
-        # Car movement for player 2 (multiplayer mode)
-        if multiplayer_mode:
-            keys = pygame.key.get_pressed()
-            if keys[pygame.K_a]:
-                player2_speed = -player2_car["speed"]
-            if keys[pygame.K_d]:
+            if event.key == pygame.K_LEFT:
+                car_x -= selected_car["speed"]
+            if event.key == pygame.K_RIGHT:
+                car_x += selected_car["speed"]
+            if event.key == pygame.K_d:
                 player2_speed = player2_car["speed"]
-            if keys[pygame.K_w]:
+            if event.key == pygame.K_w:
                 player2_speed = 0
+            if event.key == pygame.K_u:
+                show_upgrade_menu()
 
     if not paused:
         # Move player car
@@ -489,6 +496,18 @@ while running:
         if current_mode == "time_trial" and pygame.time.get_ticks() - time_trial_start_time > time_trial_time:
             display_game_over(score)
             running = False
+
+        # Check championship mode
+        if current_mode == "championship":
+            if current_championship_race < championship_race_count:
+                # Perform championship race logic
+                pass  # This is a placeholder for additional championship logic
+            else:
+                # End of championship
+                display_message(f"Championship Complete! Final Score: {score}", screen_width // 5, screen_height // 3)
+                pygame.display.update()
+                pygame.time.wait(2000)
+                running = False
 
         # Apply weather effects
         apply_weather_effects()
