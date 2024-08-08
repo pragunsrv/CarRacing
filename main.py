@@ -28,11 +28,12 @@ car_width = 50
 car_height = 60
 car_speed = 0
 car_types = [
-    {"color": red, "speed": 5},  # Car type 1
-    {"color": blue, "speed": 6},  # Car type 2
-    {"color": green, "speed": 7}  # Car type 3
+    {"color": red, "speed": 5, "handling": 1.0},  # Car type 1
+    {"color": blue, "speed": 6, "handling": 1.2},  # Car type 2
+    {"color": green, "speed": 7, "handling": 1.5}  # Car type 3
 ]
 selected_car = car_types[0]  # Default car type
+car_upgrades = {"speed": 0, "handling": 0}
 
 # Track settings
 tracks = [
@@ -85,6 +86,9 @@ menu = True
 # Weather conditions
 weather_conditions = ["sunny", "rainy"]
 current_weather = random.choice(weather_conditions)
+
+# Player achievements
+achievements = {"first_crash": False, "high_score": 0}
 
 # Function to check for collisions
 def check_collision(car_x, car_y, obstacle_x, obstacle_y, obstacle_width, obstacle_height):
@@ -182,6 +186,44 @@ def draw_power_up(power_up):
     elif power_up[2] == "speed_boost":
         pygame.draw.circle(screen, blue, (power_up[0], power_up[1]), 15)
 
+# Function to upgrade the car
+def upgrade_car(upgrade_type):
+    global car_upgrades
+    if upgrade_type == "speed":
+        car_upgrades["speed"] += 1
+    elif upgrade_type == "handling":
+        car_upgrades["handling"] += 0.1
+
+    # Apply upgrades
+    selected_car["speed"] += car_upgrades["speed"]
+    selected_car["handling"] += car_upgrades["handling"]
+
+# Function to enhance obstacle AI
+def update_obstacle_ai(obstacle):
+    if obstacle[3] == "moving":
+        obstacle[0] += random.choice([-3, 3])  # Horizontal movement
+        if obstacle[0] < 0 or obstacle[0] > screen_width - obstacle_width:
+            obstacle[0] = max(0, min(obstacle[0], screen_width - obstacle_width))
+    elif obstacle[3] == "zigzag":
+        obstacle[0] += random.choice([-2, 2])
+        if obstacle[0] < 0 or obstacle[0] > screen_width - obstacle_width:
+            obstacle[0] = max(0, min(obstacle[0], screen_width - obstacle_width))
+
+# Function to check and update achievements
+def update_achievements():
+    global achievements
+    if not achievements["first_crash"] and lives < 3:
+        achievements["first_crash"] = True
+        display_message("Achievement Unlocked: First Crash!", screen_width // 3, screen_height // 3 + 100)
+        pygame.display.update()
+        pygame.time.wait(2000)
+
+    if score > achievements["high_score"]:
+        achievements["high_score"] = score
+        display_message("Achievement Unlocked: High Score!", screen_width // 3, screen_height // 3 + 150)
+        pygame.display.update()
+        pygame.time.wait(2000)
+
 # Game Menu
 def show_menu():
     menu = True
@@ -191,6 +233,7 @@ def show_menu():
         display_message("Press Enter to Start", screen_width // 5, screen_height // 2)
         display_message("Press C to Change Car", screen_width // 5, screen_height // 2 + 50)
         display_message("Press W to Change Weather", screen_width // 5, screen_height // 2 + 100)
+        display_message("Press U to Upgrade Car", screen_width // 5, screen_height // 2 + 150)
         pygame.display.update()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -202,6 +245,29 @@ def show_menu():
                     change_car_type()
                 if event.key == pygame.K_w:
                     change_weather()
+                if event.key == pygame.K_u:
+                    show_upgrade_menu()
+
+def show_upgrade_menu():
+    global car_upgrades
+    upgrading = True
+    while upgrading:
+        screen.fill(white)
+        display_message("Upgrade Menu", screen_width // 3, screen_height // 4)
+        display_message("Press S to Upgrade Speed", screen_width // 3, screen_height // 2)
+        display_message("Press H to Upgrade Handling", screen_width // 3, screen_height // 2 + 50)
+        display_message("Press ESC to Return", screen_width // 3, screen_height // 2 + 100)
+        pygame.display.update()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_s:
+                    upgrade_car("speed")
+                if event.key == pygame.K_h:
+                    upgrade_car("handling")
+                if event.key == pygame.K_ESCAPE:
+                    upgrading = False
 
 def change_car_type():
     global selected_car
@@ -241,11 +307,7 @@ while running:
 
     # Update obstacle positions and movement patterns
     for obstacle in obstacles:
-        if obstacle[3] == "moving":
-            obstacle[0] += random.choice([-3, 3])  # Horizontal movement
-            if obstacle[0] < 0 or obstacle[0] > screen_width - obstacle_width:
-                obstacle[0] = max(0, min(obstacle[0], screen_width - obstacle_width))
-        
+        update_obstacle_ai(obstacle)
         obstacle[1] += obstacle_speed
 
         # Reset obstacle when it goes off screen
@@ -253,7 +315,7 @@ while running:
             obstacle[1] = 0 - obstacle[2][1]
             obstacle[0] = random.randrange(0, screen_width - obstacle[2][1])
             obstacle[2] = random.choice(obstacle_types)
-            obstacle[3] = random.choice(["static", "moving"])
+            obstacle[3] = random.choice(["static", "moving", "zigzag"])
             score += 1
 
             # Increase level
@@ -263,6 +325,7 @@ while running:
         # Check for collision
         if not power_up_active == "invincibility" and check_collision(car_x, car_y, obstacle[0], obstacle[1], obstacle[2][1], obstacle[2][2]):
             lives -= 1
+            update_achievements()
             if lives == 0:
                 display_game_over(score)
                 running = False
