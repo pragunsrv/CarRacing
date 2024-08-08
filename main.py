@@ -131,10 +131,19 @@ time_trial_time = 60000  # 60 seconds time trial
 time_trial_start_time = 0
 
 # Lap Counting
-lap_start_y = car_y
+lap_start_y = screen_height
 laps_completed = 0
 lap_timer = pygame.time.get_ticks()
 lap_times = []
+
+# Split-screen mode
+split_screen = False
+
+# Pit Stop settings
+pit_stop_zone = pygame.Rect(0, screen_height - 50, screen_width, 50)
+in_pit_stop = False
+pit_stop_timer = 0
+pit_stop_duration = 3000  # 3 seconds
 
 # Function to check for collisions
 def check_collision(car_x, car_y, obstacle_x, obstacle_y, obstacle_width, obstacle_height):
@@ -226,6 +235,7 @@ def generate_power_up():
 
 # Function to draw power-ups
 def draw_power_up(power_up):
+    color = white
     if power_up[2] == "invincibility":
         color = yellow
     elif power_up[2] == "extra_life":
@@ -321,7 +331,7 @@ def update_achievements():
 
 # Game Menu
 def show_menu():
-    global multiplayer_mode, current_mode, current_track
+    global multiplayer_mode, current_mode, current_track, split_screen
     menu = True
     while menu:
         screen.fill(white)
@@ -332,6 +342,7 @@ def show_menu():
         display_message("Press T for Time Trial Mode", screen_width // 5, screen_height // 2 + 150)
         display_message("Press M for Multiplayer", screen_width // 5, screen_height // 2 + 200)
         display_message("Press R to Change Track", screen_width // 5, screen_height // 2 + 250)
+        display_message("Press S for Split-Screen", screen_width // 5, screen_height // 2 + 300)
         pygame.display.update()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -347,12 +358,17 @@ def show_menu():
                     current_mode = "time_trial"
                 if event.key == pygame.K_m:
                     multiplayer_mode = not multiplayer_mode
-                    display_message("Multiplayer Mode: " + ("On" if multiplayer_mode else "Off"), screen_width // 3, screen_height // 2 + 300)
+                    display_message("Multiplayer Mode: " + ("On" if multiplayer_mode else "Off"), screen_width // 3, screen_height // 2 + 350)
                     pygame.display.update()
                     pygame.time.wait(1000)
                 if event.key == pygame.K_r:
                     current_track = (current_track + 1) % len(tracks)
                     background.fill(tracks[current_track]["bg_color"])
+                if event.key == pygame.K_s:
+                    split_screen = not split_screen
+                    display_message("Split-Screen Mode: " + ("On" if split_screen else "Off"), screen_width // 3, screen_height // 2 + 400)
+                    pygame.display.update()
+                    pygame.time.wait(1000)
 
 def show_upgrade_menu():
     global car_upgrades
@@ -426,95 +442,104 @@ while running:
                 player2_speed = player2_car["speed"]
             if keys[pygame.K_w]:
                 player2_speed = 0
-            if keys[pygame.K_s]:
-                player2_speed = 0
 
-    # Update player positions
-    car_x += car_speed
-    player2_x += player2_speed
+    if not paused:
+        # Move player car
+        car_x += car_speed
+        if car_x < 0:
+            car_x = 0
+        if car_x > screen_width - car_width:
+            car_x = screen_width - car_width
 
-    # Apply camera effect (smooth follow)
-    camera_offset += (car_y - camera_offset) * camera_speed
+        # Move player 2 car
+        if multiplayer_mode:
+            player2_x += player2_speed
+            if player2_x < 0:
+                player2_x = 0
+            if player2_x > screen_width - car_width:
+                player2_x = screen_width - car_width
 
-    # Boundary checking
-    if car_x < 0:
-        car_x = 0
-    if car_x > screen_width - car_width:
-        car_x = screen_width - car_width
-    if player2_x < 0:
-        player2_x = 0
-    if player2_x > screen_width - car_width:
-        player2_x = screen_width - car_width
+        # Move obstacles and check for collisions
+        for obstacle in obstacles:
+            obstacle[1] += obstacle_speed
+            update_obstacle_ai(obstacle)
+            if obstacle[1] > screen_height:
+                obstacle[1] = random.randrange(-300, -100)
+                obstacle[0] = random.randrange(0, screen_width - obstacle_width)
+            if check_collision(car_x, car_y, obstacle[0], obstacle[1], obstacle_width, obstacle_height):
+                lives -= 1
+                obstacles.remove(obstacle)
+                if lives == 0:
+                    display_game_over(score)
+                    running = False
 
-    # Move obstacles and check for collisions
-    for obstacle in obstacles:
-        obstacle[1] += obstacle_speed
-        update_obstacle_ai(obstacle)
-        if obstacle[1] > screen_height:
-            obstacle[1] = random.randrange(-300, -100)
-            obstacle[0] = random.randrange(0, screen_width - obstacle_width)
-        if check_collision(car_x, car_y, obstacle[0], obstacle[1], obstacle[2][1], obstacle[2][2]):
-            lives -= 1
-            obstacles.remove(obstacle)
-            if lives == 0:
+        # Update AI Opponents
+        update_ai_opponents()
+
+        # Check lap counting
+        if car_y < lap_start_y - screen_height:
+            laps_completed += 1
+            lap_times.append(pygame.time.get_ticks() - lap_timer)
+            lap_timer = pygame.time.get_ticks()
+            if laps_completed >= lap_threshold:
                 display_game_over(score)
                 running = False
 
-    # Update AI Opponents
-    update_ai_opponents()
-
-    # Check lap counting
-    if car_y < lap_start_y - screen_height:
-        laps_completed += 1
-        lap_times.append(pygame.time.get_ticks() - lap_timer)
-        lap_timer = pygame.time.get_ticks()
-        if laps_completed >= lap_threshold:
+        # Check if time trial mode is over
+        if current_mode == "time_trial" and pygame.time.get_ticks() - time_trial_start_time > time_trial_time:
             display_game_over(score)
             running = False
 
-    # Check if time trial mode is over
-    if current_mode == "time_trial" and pygame.time.get_ticks() - time_trial_start_time > time_trial_time:
-        display_game_over(score)
-        running = False
+        # Apply weather effects
+        apply_weather_effects()
 
-    # Apply weather effects
-    apply_weather_effects()
+        # Power-up logic
+        generate_power_up()
+        for power_up in power_ups:
+            power_up[1] += 5  # Power-up falling speed
+            draw_power_up(power_up)
+            if check_collision(car_x, car_y, power_up[0], power_up[1], 30, 30):
+                activate_power_up(power_up[2])
+                power_ups.remove(power_up)
+            elif power_up[1] > screen_height:
+                power_ups.remove(power_up)
 
-    # Power-up logic
-    generate_power_up()
-    for power_up in power_ups:
-        power_up[1] += 5  # Power-up falling speed
-        draw_power_up(power_up)
-        if check_collision(car_x, car_y, power_up[0], power_up[1], 30, 30):
-            activate_power_up(power_up[2])
-            power_ups.remove(power_up)
-        elif power_up[1] > screen_height:
-            power_ups.remove(power_up)
+        if power_up_active:
+            if pygame.time.get_ticks() - power_up_start_time > power_up_duration:
+                deactivate_power_up()
 
-    if power_up_active:
-        if pygame.time.get_ticks() - power_up_start_time > power_up_duration:
-            deactivate_power_up()
+        # Pit Stop logic
+        if pit_stop_zone.colliderect(pygame.Rect(car_x, car_y, car_width, car_height)):
+            if not in_pit_stop:
+                in_pit_stop = True
+                pit_stop_timer = pygame.time.get_ticks()
+                car_speed = 0
+                display_message("In Pit Stop", screen_width // 3, screen_height // 2)
+                pygame.display.update()
+                pygame.time.wait(pit_stop_duration)
+                car_speed = selected_car["speed"]
+                in_pit_stop = False
 
-    # Drawing everything
-    screen.blit(background, (0, -camera_offset))
-    pygame.draw.rect(screen, selected_car["color"], [car_x, car_y, car_width, car_height])
-    if multiplayer_mode:
-        pygame.draw.rect(screen, player2_car["color"], [player2_x, player2_y, car_width, car_height])
+        # Drawing everything
+        screen.blit(background, (0, -camera_offset))
+        pygame.draw.rect(screen, selected_car["color"], [car_x, car_y, car_width, car_height])
+        if multiplayer_mode:
+            pygame.draw.rect(screen, player2_car["color"], [player2_x, player2_y, car_width, car_height])
 
-    for obstacle in obstacles:
-        pygame.draw.rect(screen, obstacle[2][0], [obstacle[0], obstacle[1], obstacle[2][1], obstacle[2][2]])
+        for obstacle in obstacles:
+            pygame.draw.rect(screen, obstacle[2][0], [obstacle[0], obstacle[1], obstacle[2][1], obstacle[2][2]])
 
-    # Draw AI opponents
-    for ai_car in ai_opponents:
-        pygame.draw.rect(screen, ai_car["color"], [ai_car["x"], ai_car["y"], car_width, car_height])
+        # Draw AI opponents
+        for ai_car in ai_opponents:
+            pygame.draw.rect(screen, ai_car["color"], [ai_car["x"], ai_car["y"], car_width, car_height])
 
-    # Display lap counter
-    display_score_level_lives_laps(score, level, lives, laps_completed)
+        # Display lap counter
+        display_score_level_lives_laps(score, level, lives, laps_completed)
 
-    # Update achievements
-    update_achievements()
+        # Update achievements
+        update_achievements()
 
-    pygame.display.flip()
-    pygame.time.Clock().tick(60)
+        pygame.display.flip()
+        pygame.time.Clock().tick(60)
 
 pygame.quit()
