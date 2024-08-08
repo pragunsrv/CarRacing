@@ -17,6 +17,7 @@ green = (0, 255, 0)
 yellow = (255, 255, 0)
 purple = (128, 0, 128)
 gray = (169, 169, 169)
+light_gray = (211, 211, 211)
 
 # Create the screen
 screen = pygame.display.set_mode((screen_width, screen_height))
@@ -25,19 +26,31 @@ pygame.display.set_caption("Car Racing Game")
 # Car settings
 car_width = 50
 car_height = 60
-car_x = (screen_width * 0.45)
-car_y = (screen_height * 0.8)
 car_speed = 0
+car_types = [
+    {"color": red, "speed": 5},  # Car type 1
+    {"color": blue, "speed": 6},  # Car type 2
+    {"color": green, "speed": 7}  # Car type 3
+]
+selected_car = car_types[0]  # Default car type
+
+# Track settings
+tracks = [
+    {"bg_color": green, "obstacle_speed": 7},  # Track 1
+    {"bg_color": light_gray, "obstacle_speed": 9},  # Track 2
+    {"bg_color": gray, "obstacle_speed": 11}  # Track 3
+]
+current_track = 0
 
 # Background
 background = pygame.Surface(screen.get_size())
-background.fill(green)
+background.fill(tracks[current_track]["bg_color"])
 
 # Obstacle settings
 obstacle_width = 50
 obstacle_height = 60
-obstacle_speed = 7
-obstacle_speed_increment = 0.02
+obstacle_speed = tracks[current_track]["obstacle_speed"]
+obstacle_speed_increment = 0.05
 obstacle_types = [(blue, 50, 60), (yellow, 60, 70)]  # Different obstacle colors and sizes
 
 # Multiple obstacles
@@ -47,7 +60,7 @@ for i in range(3):
     obstacle_y = -600 * (i + 1)
     obstacle_type = random.choice(obstacle_types)
     obstacles.append([obstacle_x, obstacle_y, obstacle_type, random.choice(["static", "moving"])])
-
+    
 # Score, level, and lives
 score = 0
 level = 1
@@ -59,15 +72,19 @@ font = pygame.font.SysFont(None, 35)
 paused = False
 
 # Power-up settings
-power_up_active = False
+power_up_active = None
 power_up_duration = 5000  # in milliseconds
 power_up_start_time = 0
-power_up_types = ["invincibility", "extra_life", "slow_motion"]
+power_up_types = ["invincibility", "extra_life", "slow_motion", "speed_boost"]
 power_ups = []
 power_up_probability = 0.01
 
 # Game menu
 menu = True
+
+# Weather conditions
+weather_conditions = ["sunny", "rainy"]
+current_weather = random.choice(weather_conditions)
 
 # Function to check for collisions
 def check_collision(car_x, car_y, obstacle_x, obstacle_y, obstacle_width, obstacle_height):
@@ -117,26 +134,34 @@ def display_message(text, x, y):
 
 # Function to increase the level
 def increase_level():
-    global level, obstacle_speed
+    global level, obstacle_speed, current_track
     level += 1
-    obstacle_speed += 2
+    obstacle_speed += obstacle_speed_increment
+    if level % 10 == 0:  # Change track every 10 levels
+        current_track = (current_track + 1) % len(tracks)
+        obstacle_speed = tracks[current_track]["obstacle_speed"]
+        background.fill(tracks[current_track]["bg_color"])
 
 # Function to handle power-ups
 def activate_power_up(power_up):
-    global power_up_active, power_up_start_time, lives, obstacle_speed
+    global power_up_active, power_up_start_time, lives, selected_car, obstacle_speed
     power_up_active = power_up
     power_up_start_time = pygame.time.get_ticks()
     if power_up == "extra_life":
         lives += 1
-        power_up_active = False  # Extra life power-up is instantaneous
+        power_up_active = None  # Extra life power-up is instantaneous
     elif power_up == "slow_motion":
         obstacle_speed /= 2
+    elif power_up == "speed_boost":
+        selected_car["speed"] += 2
 
 def deactivate_power_up():
-    global power_up_active, obstacle_speed
+    global power_up_active, obstacle_speed, selected_car
     if power_up_active == "slow_motion":
         obstacle_speed *= 2
-    power_up_active = False
+    elif power_up_active == "speed_boost":
+        selected_car["speed"] -= 2
+    power_up_active = None
 
 # Function to generate power-ups randomly
 def generate_power_up():
@@ -154,6 +179,8 @@ def draw_power_up(power_up):
         pygame.draw.circle(screen, yellow, (power_up[0], power_up[1]), 15)
     elif power_up[2] == "slow_motion":
         pygame.draw.circle(screen, gray, (power_up[0], power_up[1]), 15)
+    elif power_up[2] == "speed_boost":
+        pygame.draw.circle(screen, blue, (power_up[0], power_up[1]), 15)
 
 # Game Menu
 def show_menu():
@@ -162,6 +189,8 @@ def show_menu():
         screen.fill(white)
         display_message("Car Racing Game", screen_width // 5, screen_height // 4)
         display_message("Press Enter to Start", screen_width // 5, screen_height // 2)
+        display_message("Press C to Change Car", screen_width // 5, screen_height // 2 + 50)
+        display_message("Press W to Change Weather", screen_width // 5, screen_height // 2 + 100)
         pygame.display.update()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -169,6 +198,22 @@ def show_menu():
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_RETURN:
                     menu = False
+                if event.key == pygame.K_c:
+                    change_car_type()
+                if event.key == pygame.K_w:
+                    change_weather()
+
+def change_car_type():
+    global selected_car
+    car_types_cycle = car_types.copy()
+    car_types_cycle.append(car_types_cycle.pop(0))
+    selected_car = car_types_cycle[0]
+
+def change_weather():
+    global current_weather
+    weather_conditions_cycle = weather_conditions.copy()
+    weather_conditions_cycle.append(weather_conditions_cycle.pop(0))
+    current_weather = weather_conditions_cycle[0]
 
 # Start Game
 show_menu()
@@ -182,9 +227,9 @@ while running:
         # Car movement
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_LEFT:
-                car_speed = -5
+                car_speed = -selected_car["speed"]
             if event.key == pygame.K_RIGHT:
-                car_speed = 5
+                car_speed = selected_car["speed"]
             if event.key == pygame.K_p:
                 pause_game()
 
@@ -239,10 +284,11 @@ while running:
         deactivate_power_up()
 
     # Screen background
+    background.fill(tracks[current_track]["bg_color"])
     screen.blit(background, (0, 0))
 
     # Draw car
-    pygame.draw.rect(screen, red, [car_x, car_y, car_width, car_height])
+    pygame.draw.rect(screen, selected_car["color"], [car_x, car_y, car_width, car_height])
 
     # Draw obstacles
     for obstacle in obstacles:
